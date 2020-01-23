@@ -1,18 +1,20 @@
 import logging
 import sys
-
 from master.Master import Master
 
 logging.basicConfig(level=logging.INFO, handlers=[logging.StreamHandler(sys.stdout)])
 
 
 def supply():
-    task = {
-        "id": "test-1",
-        "image": "jj",
-        "arguments": "run day=20190709 stock=AMZN"
-    }
-    yield task
+    n = 1
+    while n <= 10:
+        task = {
+            "id": "test-{}".format(n),
+            "image": "ubuntu",
+            "arguments": "/bin/bash -c 'sleep 1; echo {}'".format(n)
+        }
+        yield task
+        n += 1
 
 
 def reduce(value, accumulator):
@@ -23,12 +25,12 @@ def reduce(value, accumulator):
 
 def termination(values):
     logging.info("Termination! Values: {}".format(values))
-    sum = 0
+    _sum = 0
     for v in values:
-        sum += v
+        _sum += v
 
-    logging.info("DONE! The sum is")
-    logging.info(sum)
+    logging.info("DONE! The sum is {}".format(_sum))
+    logging.info(_sum)
 
 
 if __name__ == '__main__':
