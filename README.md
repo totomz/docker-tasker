@@ -1,17 +1,21 @@
 # docker-tasker
 
-docker-tasker, or `dt`, allows you to easily run tasks on a cluster of instances and collect the results.
-
-As an example, you could evaluate an expensive cost function of a genetic algorithm on a cluster of cpu with few lines of code. 
-  
-With `dt` you can
-* create a cluster of instances;
-* zip your strategy in a Docker container;
-* run your container on all the nodes of the cluster;
-* collect and evaluate the results;
+TODO README 
 
 
-`dt` has  the following components
+# Agent
+The agent is a docker image that runs task i
 
+```
+docker run --name worker \
+    -e AWS_ACCESS_KEY_ID=AKIAxxxx \
+    -e AWS_SECRET_ACCESS_KEY=yyyyyyy \
+    -e AWS_DEFAULT_REGION=eu-west-1 \
+    -e Q_TASK=task \
+    -e Q_RESULTS=results \
+    -v /var/run/docker.sock:/var/run/docker.sock \
+    -d \
+    hakunacloud/tasker:latest 
 
-  
+```
+

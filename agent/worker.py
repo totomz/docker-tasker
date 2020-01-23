@@ -1,26 +1,28 @@
 #!/usr/bin/python3 -u
 
-import os
-import boto3
 import json
-import subprocess
+import logging
 import multiprocessing
-import docker
 import os
-
+import sys
+from datetime import datetime
 from multiprocessing import Pool
 
-# Create SQS client
-# credentials from ~/.boto
-sqs = boto3.client('sqs', region_name='us-east-2' )
+import boto3
+import docker
 
-region = sqs._client_config.region_name
+sqs = boto3.client('sqs')
 
-queue_jobs = 'https://%s.queue.amazonaws.com/242728094507/jcalibrador-jobs' % region
-queue_results = 'https://%s.queue.amazonaws.com/242728094507/jcalibrador-results' % region
+aws_region = boto3.session.Session().region_name
+aws_account_id = boto3.client('sts').get_caller_identity().get('Account')
+queue_jobs_name = os.environ['Q_TASK']
+queue_results_name = os.environ['Q_RESULTS']
+
+queue_jobs = "https://{}.queue.amazonaws.com/{}/{}".format(aws_region, aws_account_id, queue_jobs_name)
+queue_results = "https://{}.queue.amazonaws.com/{}/{}".format(aws_region, aws_account_id, queue_results_name)
 
 
-class DockerCommand():
+class DockerCommand:
     def __init__(self, id="", command="run", image='ubuntu', arguments='sleep 1; echo 3'):
         self.command = command
         self.image = image
@@ -49,19 +51,32 @@ class DockerResult:
 
 
 def run():
+    log = logging.getLogger()
+    log.setLevel(logging.INFO)
+    handler = logging.StreamHandler(sys.stdout)
+    handler.setFormatter(logging.Formatter('%(threadName)s: %(message)s'))
+    log.addHandler(handler)
+
     nProc = multiprocessing.cpu_count()
-    print("Start polling")
+    logging.info("Start polling")
     pool = Pool(processes=nProc)
     for k in range(0, nProc+1):
-        print("Starting poller %s" % k)
+        logging.info("Starting poller %s" % k)
         pool.apply_async(process_job, ())
 
-    print("MAIN - wait for the pollers to ends")
+    logging.info("MAIN - wait for pollers to end")
     pool.close()
     pool.join()
 
 
 def process_job():
+    log = multiprocessing.get_logger()
+    log.setLevel(logging.INFO)
+    handler = logging.StreamHandler(sys.stdout)
+    handler.setFormatter(logging.Formatter('    --> [%(asctime)s] - %(processName)s - %(message)s'))
+    log.addHandler(handler)
+
+    log.info("Poller started polling")
     while True:
         resp = sqs.receive_message(
             QueueUrl=queue_jobs,
@@ -74,6 +89,7 @@ def process_job():
         message = None
         try:
             message = resp['Messages'][0]
+            log.info("GOT a task")
         except KeyError:
             # print("No jobs found....")
             continue
@@ -85,25 +101,32 @@ def process_job():
         result = DockerResult(id=command.id)
 
         try:
-            out = client.containers.run(command.image, command.arguments)
+            start = datetime.utcnow()
+            out = client.containers.run(command.image, command.arguments).decode("utf-8").rstrip()
+
+            # Assumption: the result is exactly the last output I got from the container
+            out = out.split("\n")[-1]
+
+            log.info("Partial result: [{}] in {}".format(out, datetime.utcnow() - start))
             result.isSuccess = True
             result.payload = ''.join(out.splitlines())
         except Exception as e:
-            print("ERROR:[%s] JOB:[%s]" % (e.message, message['Body']))
+            log.error("ERROR:[%s] JOB:[%s]" % (e.message, message['Body']))
             result.isSuccess = False
             result.payload = e.message
 
         # Publish the result and remove the job from the queue
-        response = sqs.send_message(
+        sqs.send_message(
             QueueUrl=queue_results,
             MessageBody=result.to_json()
         )
 
-        resp2 = sqs.delete_message(
+        sqs.delete_message(
             QueueUrl=queue_jobs,
             ReceiptHandle=message['ReceiptHandle']
         )
-        print("Return %s" % result.payload)
+
 
 
 run()
+# process_job()
