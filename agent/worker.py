@@ -57,7 +57,8 @@ def run():
     handler.setFormatter(logging.Formatter('%(threadName)s: %(message)s'))
     log.addHandler(handler)
 
-    nProc = multiprocessing.cpu_count()
+    # nProc = multiprocessing.cpu_count()
+    nProc = 1
     logging.info("Start polling")
     pool = Pool(processes=nProc)
     for k in range(0, nProc+1):
@@ -89,7 +90,6 @@ def process_job():
         message = None
         try:
             message = resp['Messages'][0]
-            log.info("GOT a task")
         except KeyError:
             # print("No jobs found....")
             continue
@@ -97,11 +97,17 @@ def process_job():
         command = DockerCommand()
         command.set_from_sqs(message['Body'])
 
+        log.info("GOT a task: {}".format(command.id))
+
         client = docker.from_env(version='auto')
         result = DockerResult(id=command.id)
 
         try:
             start = datetime.utcnow()
+
+            tmp = command.image.split(":")
+            image_tag = "latest" if len(tmp) == 1 else tmp[1]
+            client.images.pull(repository=tmp[0], tag=image_tag)
             out = client.containers.run(command.image, command.arguments).decode("utf-8").rstrip()
 
             # Assumption: the result is exactly the last output I got from the container
@@ -111,9 +117,18 @@ def process_job():
             result.isSuccess = True
             result.payload = ''.join(out.splitlines())
         except Exception as e:
-            log.error("ERROR:[%s] JOB:[%s]" % (e.message, message['Body']))
+            error_message = "general error"
+
+            if hasattr(e, 'stderr'):
+                # The child container went in error
+                error_message = e.stderr.decode("utf-8")
+            if hasattr(e, 'explanation'):
+                # Docker api error
+                error_message = e.explanation
+
+            log.error("ERROR:[%s] JOB:[%s]" % (error_message, message['Body']))
             result.isSuccess = False
-            result.payload = e.message
+            result.payload = error_message
 
         # Publish the result and remove the job from the queue
         sqs.send_message(
@@ -125,7 +140,6 @@ def process_job():
             QueueUrl=queue_jobs,
             ReceiptHandle=message['ReceiptHandle']
         )
-
 
 
 run()

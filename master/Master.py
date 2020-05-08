@@ -3,7 +3,7 @@ import json
 import os
 import sys
 import logging
-
+import jobs.autotrader.CalculateInversions as Inversions
 logging.basicConfig(level=logging.INFO, handlers=[logging.StreamHandler(sys.stdout)])
 
 
@@ -18,7 +18,10 @@ logging.basicConfig(level=logging.INFO, handlers=[logging.StreamHandler(sys.stdo
 
 class Master:
 
-    def __init__(self, supplier={}, reducer={}, terminate= lambda x:x):
+    def __init__(self,
+                 supplier=lambda x: x,
+                 reducer=lambda x: x,
+                 terminate=lambda x: x):
         self.supplier = supplier
         self.reducer = reducer
         self.terminate = terminate
@@ -111,9 +114,9 @@ def termination(values):
 
 
 if __name__ == '__main__':
-    master = Master(supplier=supply,
-                    reducer=reduce,
-                    terminate=termination)
+    master = Master(supplier=Inversions.supply,
+                    reducer=Inversions.reduce,
+                    terminate=Inversions.termination)
     master.start()
     print("### DONE ###")
 
