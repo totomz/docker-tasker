@@ -3,7 +3,10 @@ import json
 import os
 import sys
 import logging
+import datetime
 import jobs.autotrader.CalculateInversions as Inversions
+from jobs.autotrader import BacktestInversions
+
 logging.basicConfig(level=logging.INFO, handlers=[logging.StreamHandler(sys.stdout)])
 
 
@@ -14,6 +17,8 @@ logging.basicConfig(level=logging.INFO, handlers=[logging.StreamHandler(sys.stdo
 * genera i comandi e li scrive in una coda
 * polla la coda con i risultati e scarica il reducer
 '''
+
+
 
 
 class Master:
@@ -79,7 +84,7 @@ class Master:
             except KeyError:
                 print("No jobs found....")
                 empty_counter += 1
-                keep_polling = False if empty_counter > 10 or len(tasks_submitted) == 0 else True
+                # keep_polling = False if empty_counter > 10 or len(tasks_submitted) == 0 else True
                 continue
 
         self.terminate(accumulator)
@@ -114,9 +119,9 @@ def termination(values):
 
 
 if __name__ == '__main__':
-    master = Master(supplier=Inversions.supply,
-                    reducer=Inversions.reduce,
-                    terminate=Inversions.termination)
+    master = Master(supplier=BacktestInversions.supply,
+                    reducer=BacktestInversions.reduce,
+                    terminate=BacktestInversions.termination)
     master.start()
     print("### DONE ###")
 

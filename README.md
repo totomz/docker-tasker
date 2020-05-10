@@ -2,7 +2,38 @@
 
 `tasker` is a simple task producer-consumer tool, based on Docker. 
 
-It helps you run multiple tasks, represented as docker containers, on a cluster with (almost) no effort. 
+A `master` node is responsible to create jobs, that are pushed to an AWS SQS queue. These jobs are then consumed by as many `agents` you deploy on your nodes. 
+
+## How to run
+### What you need
+* python3
+* docker
+* aws access key and secret key
+
+On each worker node
+* Run the agent
+    -e AWS_ACCESS_KEY_ID=AKIAxxxxx \
+    -e AWS_SECRET_ACCESS_KEY=yyyyyyyy \
+
+```bash
+AWS_ACCESS_KEY_ID=AKIASQ3SURJILVRL2SV3 AWS_SECRET_ACCESS_KEY=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 aws ecr get-login-password --region eu-west-1 | docker login --username AWS --password-stdin 173649726032.dkr.ecr.eu-west-1.amazonaws.com
+
+docker pull 173649726032.dkr.ecr.eu-west-1.amazonaws.com/trader/worker:latest
+
+docker run --rm -d \
+    -e AWS_ACCESS_KEY_ID=AKIASQ3SURJILVRL2SV3 \
+    -e AWS_SECRET_ACCESS_KEY=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 \
+    -e AWS_DEFAULT_REGION=eu-west-1 \
+    -e Q_TASK=task \
+    -e Q_RESULTS=results \
+    -v /var/run/docker.sock:/var/run/docker.sock \
+    173649726032.dkr.ecr.eu-west-1.amazonaws.com/trader/worker:latest
+```
+
+On the `master`:
+1. `git clone git@github.com:totomz/docker-tasker.git`
+2. Implement the functions `master.Master.supply`, `master.Master.reduce`, `master.Master.termination`
+
 
 
 ## Components

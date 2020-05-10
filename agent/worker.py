@@ -5,6 +5,7 @@ import logging
 import multiprocessing
 import os
 import sys
+import tempfile
 from datetime import datetime
 from multiprocessing import Pool
 
@@ -57,8 +58,8 @@ def run():
     handler.setFormatter(logging.Formatter('%(threadName)s: %(message)s'))
     log.addHandler(handler)
 
-    # nProc = multiprocessing.cpu_count()
-    nProc = 1
+    nProc = multiprocessing.cpu_count()
+    # nProc = 1
     logging.info("Start polling")
     pool = Pool(processes=nProc)
     for k in range(0, nProc+1):
@@ -107,7 +108,8 @@ def process_job():
 
             tmp = command.image.split(":")
             image_tag = "latest" if len(tmp) == 1 else tmp[1]
-            client.images.pull(repository=tmp[0], tag=image_tag)
+            # Pull e' broken, non scarica da ECR
+            # client.images.pull(repository=tmp[0], tag=image_tag)
             out = client.containers.run(command.image, command.arguments).decode("utf-8").rstrip()
 
             # Assumption: the result is exactly the last output I got from the container
@@ -131,10 +133,21 @@ def process_job():
             result.payload = error_message
 
         # Publish the result and remove the job from the queue
-        sqs.send_message(
-            QueueUrl=queue_results,
-            MessageBody=result.to_json()
-        )
+        # sqs.send_message(
+        #     QueueUrl=queue_results,
+        #     MessageBody=result.to_json()
+        # )
+
+        # Save the output on S3 and ciaone
+        descriptor, temp_path = tempfile.mkstemp()
+        with open(temp_path, "w") as text_file:
+            text_file.write("\n".join([result.to_json()]))
+        s3 = boto3.resource('s3',
+                            aws_access_key_id="AKIASQ3SURJILVRL2SV3",
+                            aws_secret_access_key="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",)
+        S3_BUCKET = "autotrader-0291"
+        S3_KEY = "results/{t}/{file}".format(t=result.id.split("-")[0], file=result.id)
+        s3.Object(S3_BUCKET, S3_KEY).upload_file(temp_path)
 
         sqs.delete_message(
             QueueUrl=queue_jobs,
