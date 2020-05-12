@@ -21,6 +21,7 @@ AWS_ACCESS_KEY_ID=AKIASQ3SURJILVRL2SV3 AWS_SECRET_ACCESS_KEY=U5Q7oEsAm/fhTY7ylv1
 docker pull 173649726032.dkr.ecr.eu-west-1.amazonaws.com/trader/worker:latest
 
 docker run --rm -d \
+    --name dtrader_worker
     -e AWS_ACCESS_KEY_ID=AKIASQ3SURJILVRL2SV3 \
     -e AWS_SECRET_ACCESS_KEY=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 \
     -e AWS_DEFAULT_REGION=eu-west-1 \

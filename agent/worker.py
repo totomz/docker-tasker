@@ -6,12 +6,13 @@ import multiprocessing
 import os
 import sys
 import tempfile
-from datetime import datetime
-from multiprocessing import Pool
-
 import boto3
 import docker
+from datetime import datetime
+from multiprocessing import Pool
+from dotenv import load_dotenv
 
+load_dotenv()
 sqs = boto3.client('sqs')
 
 aws_region = boto3.session.Session().region_name
@@ -58,8 +59,8 @@ def run():
     handler.setFormatter(logging.Formatter('%(threadName)s: %(message)s'))
     log.addHandler(handler)
 
-    nProc = multiprocessing.cpu_count()
-    # nProc = 1
+    nProc = int(os.getenv('nProc', multiprocessing.cpu_count()))
+
     logging.info("Start polling")
     pool = Pool(processes=nProc)
     for k in range(0, nProc+1):
@@ -85,7 +86,7 @@ def process_job():
             AttributeNames=['All'],
             MaxNumberOfMessages=1,
             VisibilityTimeout=120,
-            WaitTimeSeconds=2
+            WaitTimeSeconds=20
         )
 
         message = None
@@ -121,10 +122,12 @@ def process_job():
         except Exception as e:
             error_message = "general error"
 
-            if hasattr(e, 'stderr'):
+            if isinstance(e, ValueError):
+                error_message = str(e)
+            elif hasattr(e, 'stderr'):
                 # The child container went in error
                 error_message = e.stderr.decode("utf-8")
-            if hasattr(e, 'explanation'):
+            elif hasattr(e, 'explanation'):
                 # Docker api error
                 error_message = e.explanation
 
@@ -148,6 +151,12 @@ def process_job():
         S3_BUCKET = "autotrader-0291"
         S3_KEY = "results/{t}/{file}".format(t=result.id.split("-")[0], file=result.id)
         s3.Object(S3_BUCKET, S3_KEY).upload_file(temp_path)
+
+        # Publish the result and remove the job from the queue
+        sqs.send_message(
+            QueueUrl=queue_results,
+            MessageBody=result.to_json()
+        )
 
         sqs.delete_message(
             QueueUrl=queue_jobs,

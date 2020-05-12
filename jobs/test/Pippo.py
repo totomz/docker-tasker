@@ -9,20 +9,24 @@ from master.Master import Master
 log = logging.getLogger(__name__)
 
 
-class BacktestInversions:
+class Pippo:
 
     def __init__(self):
-        self._title = "backtest_inversions_{date}".format(date=datetime.now().strftime('%Y%m%d_%H_%M'))
+        print("Ciao")
 
+    """
+        Ritorna un prefisso che sara' usato nella generazione dei task
+        Questo prefisso viene usato come path nel quale salvare i dati su S3  
+    """
     def title(self):
-        return self._title
+        return "yep_{date}".format(date=datetime.now().strftime('%Y%m%d_%H_%M'))
 
     def hosts(self):
-        return ["autbob", "192.168.100.238"]
-        # return []
+        # return ["autbob", "192.168.100.238"]
+        return []
 
     def worker_image(self):
-        return "173649726032.dkr.ecr.eu-west-1.amazonaws.com/trader/inversion:latest"
+        return "ubuntu"
 
     def host_user(self, host):
         return "totomz"
@@ -39,16 +43,14 @@ class BacktestInversions:
     def supply(self):
         path = "/Users/totomz/Documents/trading/autotrader/data/quantum"
         onlyfiles = [f for f in listdir(path) if isfile(join(path, f))]
-        for file in onlyfiles:
-        # for file in ["20190701-DIS", "20190701-NFLX"]:
+        # for file in onlyfiles:
+        for file in ["20190701-DIS", "20190701-NFLX"]:
             (day, stock) = Path(file).stem.split("-")
             task = {
                 "id": "{prefix}-{suffix}".format(prefix=self.title(),
                                                  suffix=file),
-                "arguments": "backtest_v1 datadir=s3://autotrader-0291/data/quantum/v1 day={day} stock={stock} inv_store=s3://autotrader-0291/data/quantum_inversions/20200507".format(
-                    day=day,
-                    stock=stock
-                )
+                "arguments": "/bin/bash -c 'sleep 3; echo \"daje\"'"
+                # "image": "ubuntu"   # The image is forced by the Master, by calling self.worker_image().
             }
             yield task
 
@@ -64,7 +66,7 @@ class BacktestInversions:
 
 
 if __name__ == '__main__':
-    master = Master(job=BacktestInversions())
+    master = Master(job=Pippo())
     master.initialize()
     master.start()
     print("### DONE ###")

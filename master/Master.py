@@ -1,14 +1,16 @@
-import boto3
 import json
+import logging
 import os
 import sys
-import logging
-import datetime
-import jobs.autotrader.CalculateInversions as Inversions
-from jobs.autotrader import BacktestInversions
 
+import boto3
+import paramiko
+from dotenv import load_dotenv
+
+load_dotenv()
 logging.basicConfig(level=logging.INFO, handlers=[logging.StreamHandler(sys.stdout)])
-
+logging.getLogger('paramiko.transport').setLevel(logging.WARNING)
+log = logging.getLogger("master")
 
 
 '''
@@ -19,20 +21,48 @@ logging.basicConfig(level=logging.INFO, handlers=[logging.StreamHandler(sys.stdo
 '''
 
 
-
-
 class Master:
 
-    def __init__(self,
-                 supplier=lambda x: x,
-                 reducer=lambda x: x,
-                 terminate=lambda x: x):
-        self.supplier = supplier
-        self.reducer = reducer
-        self.terminate = terminate
+    def __init__(self, job):
+        self.supplier = job.supply
+        self.reducer = job.reduce
+        self.terminate = job.termination
+        self.job = job
+
+    def initialize(self):
+        log.info("Initializing agents")
+        for host in self.job.hosts():
+            log.info("Host: {host}".format(host=host))
+            log.info("    Stopping running worker")
+            self.ssh_command(host, "docker stop dtrader_worker", True)
+
+            log.info("    AWS ECR Login")
+            self.ssh_command(host, "aws ecr get-login-password --region eu-west-1 | docker login --username AWS --password-stdin 173649726032.dkr.ecr.eu-west-1.amazonaws.com")
+
+            log.info("    Pulling image")
+            self.ssh_command(host, "docker pull 173649726032.dkr.ecr.eu-west-1.amazonaws.com/trader/worker:latest")
+
+    def ssh_command(self, host, command, ignore_errors=False):
+        with paramiko.SSHClient() as ssh:
+            ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+            ssh.connect(host,
+                        username=self.job.host_user(host=host),
+                        password=self.job.host_pass(host=host))
+
+            ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command(command, get_pty=True)
+
+            result = ssh_stdout.channel.recv_exit_status()
+            if not ignore_errors:
+                if result > 0:
+                    print("*** ERROR INIT HOST {} ***".format(host))
+                    print(ssh_stderr.read().decode())
+                    print("***************************")
+                    raise Exception("Command returned code {}".format(result))
+
+            return result
 
     def start(self):
-        logging.info("Starting...")
+        log.info("Starting...")
         aws_region = boto3.session.Session().region_name
         sqs = boto3.client('sqs')
         aws_account_id = boto3.client('sts').get_caller_identity().get('Account')
@@ -40,13 +70,34 @@ class Master:
         queue_jobs = "https://{}.queue.amazonaws.com/{}/{}".format(aws_region, aws_account_id, os.environ['Q_TASK'])
         queue_results = "https://{}.queue.amazonaws.com/{}/{}".format(aws_region, aws_account_id, os.environ['Q_RESULTS'])
 
-        logging.info("Task queue: {}".format(queue_jobs))
-        logging.info("Results queue: {}".format(queue_results))
+        log.info("Task queue: {}".format(queue_jobs))
+        log.info("Results queue: {}".format(queue_results))
 
         tasks_submitted = {}
 
+        command = """
+        docker run --rm -d \
+            --name dtrader_worker \
+            -e AWS_ACCESS_KEY_ID={aws_key} \
+            -e AWS_SECRET_ACCESS_KEY={aws_secret} \
+            -e AWS_DEFAULT_REGION=eu-west-1 \
+            -e Q_TASK=task \
+            -e Q_RESULTS=results \
+            -v /var/run/docker.sock:/var/run/docker.sock \
+            173649726032.dkr.ecr.eu-west-1.amazonaws.com/trader/worker:latest
+        """.format(aws_key=self.job.aws_key(),
+                   aws_secret=self.job.aws_secret())
+
+        for host in self.job.hosts():
+            log.info("{host} --> Starting agents".format(host=host))
+            self.ssh_command(host, command)
+
+            log.info("{host} --> Pulling image".format(host=host))
+            self.ssh_command(host, "docker pull {image}".format(image=self.job.worker_image()))
+
         # Push the task in the queue
         for task in self.supplier():
+            task['image'] = self.job.worker_image()
             body = json.dumps(task)
             response = sqs.send_message(
                 QueueUrl=queue_jobs,
@@ -54,7 +105,7 @@ class Master:
                 MessageBody=body
             )
             tasks_submitted[task['id']] = response['MessageId']
-            logging.info("Queued {} ".format(body))
+            log.info("Queued {} ".format(body))
 
         # Collect the results.
         accumulator = list()
@@ -82,7 +133,7 @@ class Master:
                     self.reducer(result, accumulator)
                     keep_polling = False if len(tasks_submitted) == 0 else True
             except KeyError:
-                print("No jobs found....")
+                print(".")
                 empty_counter += 1
                 # keep_polling = False if empty_counter > 10 or len(tasks_submitted) == 0 else True
                 continue
@@ -90,39 +141,5 @@ class Master:
         self.terminate(accumulator)
 
 
-def supply():
-    n = 1
-    while n <= 10:
-        task = {
-            "id": "test-{}".format(n),
-            "image": "ubuntu",
-            "arguments": "/bin/bash -c 'sleep 10; echo {}'".format(n)
-        }
-        yield task
-        n += 1
-
-
-def reduce(value, accumulator):
-    logging.info("    --> Reduce {} [{}]".format(value, accumulator))
-    if value['isSuccess']:
-        accumulator.append(int(value['payload']))
-
-
-def termination(values):
-    logging.info("Termination! Values: {}".format(values))
-    sum = 0
-    for v in values:
-        sum += v
-
-    logging.info("DONE! The sum is")
-    logging.info(sum)
-
-
-if __name__ == '__main__':
-    master = Master(supplier=BacktestInversions.supply,
-                    reducer=BacktestInversions.reduce,
-                    terminate=BacktestInversions.termination)
-    master.start()
-    print("### DONE ###")
 
 

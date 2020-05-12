@@ -8,6 +8,8 @@ verify_ssl = true
 [packages]
 boto3 = "*"
 docker = "*"
+paramiko = "*"
+python-dotenv = "*"
 
 [requires]
 python_version = "3.7"
