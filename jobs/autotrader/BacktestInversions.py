@@ -18,7 +18,7 @@ class BacktestInversions:
         return self._title
 
     def hosts(self):
-        return ["autbob", "192.168.100.238"]
+        return ["autbob", "autcharlie"]
         # return []
 
     def worker_image(self):
@@ -43,9 +43,8 @@ class BacktestInversions:
         # for file in ["20190701-DIS", "20190701-NFLX"]:
             (day, stock) = Path(file).stem.split("-")
             task = {
-                "id": "{prefix}-{suffix}".format(prefix=self.title(),
-                                                 suffix=file),
-                "arguments": "backtest_v1 datadir=s3://autotrader-0291/data/quantum/v1 day={day} stock={stock} inv_store=s3://autotrader-0291/data/quantum_inversions/20200507".format(
+                "id": "{prefix}-{suffix}".format(prefix=self.title(), suffix=file),
+                "arguments": "backtest_v1 day={day} stock={stock} datadir=s3://autotrader-0291/data/quantum/v1 inv_store=s3://autotrader-0291/data/quantum_inversions/20200507".format(
                     day=day,
                     stock=stock
                 )

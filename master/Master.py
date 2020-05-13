@@ -52,10 +52,13 @@ class Master:
             ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command(command, get_pty=True)
 
             result = ssh_stdout.channel.recv_exit_status()
+            stdout = ssh_stdout.read().decode()
+            stderr = ssh_stderr.read().decode()
             if not ignore_errors:
                 if result > 0:
                     print("*** ERROR INIT HOST {} ***".format(host))
-                    print(ssh_stderr.read().decode())
+                    print(stdout)
+                    print(stderr)
                     print("***************************")
                     raise Exception("Command returned code {}".format(result))
 
@@ -75,20 +78,21 @@ class Master:
 
         tasks_submitted = {}
 
-        command = """
-        docker run --rm -d \
-            --name dtrader_worker \
-            -e AWS_ACCESS_KEY_ID={aws_key} \
-            -e AWS_SECRET_ACCESS_KEY={aws_secret} \
-            -e AWS_DEFAULT_REGION=eu-west-1 \
-            -e Q_TASK=task \
-            -e Q_RESULTS=results \
-            -v /var/run/docker.sock:/var/run/docker.sock \
-            173649726032.dkr.ecr.eu-west-1.amazonaws.com/trader/worker:latest
-        """.format(aws_key=self.job.aws_key(),
-                   aws_secret=self.job.aws_secret())
-
         for host in self.job.hosts():
+            command = """
+                docker run --rm -d \
+                    --name dtrader_worker \
+                    -e AWS_ACCESS_KEY_ID={aws_key} \
+                    -e AWS_SECRET_ACCESS_KEY={aws_secret} \
+                    -e AWS_DEFAULT_REGION=eu-west-1 \
+                    -e Q_TASK=task \
+                    -e Q_RESULTS=results \
+                    -v /var/run/docker.sock:/var/run/docker.sock \
+                    173649726032.dkr.ecr.eu-west-1.amazonaws.com/trader/worker:latest
+                """.format(aws_key=self.job.aws_key(),
+                           aws_secret=self.job.aws_secret(),
+                           hostname=host)
+
             log.info("{host} --> Starting agents".format(host=host))
             self.ssh_command(host, command)
 
