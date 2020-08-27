@@ -1,18 +1,11 @@
 FROM python:3
 
-RUN apt-get update && apt-get install -y pipenv
 WORKDIR /opt/tasker
 
+COPY requirements.txt ./
+RUN pip install -r requirements.txt
 
-COPY Pipfile ./
-COPY Pipfile.lock ./
-
-# Run this asap. We change the code and pipenv is slowwwwwww
-RUN pipenv install
-
-COPY agent ./agent
-COPY master ./master
-COPY jobs ./jobs
+COPY tasker/agent ./agent
 
 COPY run.sh /opt/tasker/
 ENTRYPOINT ["/opt/tasker/run.sh"]

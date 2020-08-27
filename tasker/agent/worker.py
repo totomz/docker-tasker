@@ -10,9 +10,12 @@ import boto3
 import docker
 from datetime import datetime
 from multiprocessing import Pool
-from dotenv import load_dotenv
 
+from dotenv import load_dotenv
 load_dotenv()
+
+nProc = int(os.getenv('nProc', multiprocessing.cpu_count()))
+
 sqs = boto3.client('sqs')
 
 aws_region = boto3.session.Session().region_name
@@ -59,8 +62,6 @@ def run():
     handler.setFormatter(logging.Formatter('%(threadName)s: %(message)s'))
     log.addHandler(handler)
 
-    nProc = int(os.getenv('nProc', multiprocessing.cpu_count()))
-
     logging.info("Start polling")
     pool = Pool(processes=nProc)
     for k in range(0, nProc+1):
@@ -101,16 +102,14 @@ def process_job():
 
         log.info("GOT a task: {}".format(command.id))
 
-        client = docker.from_env(version='auto')
-        result = DockerResult(id=command.id)
-
         try:
+            client = docker.from_env()
+            result = DockerResult(id=command.id)
+
             start = datetime.utcnow()
 
             tmp = command.image.split(":")
             image_tag = "latest" if len(tmp) == 1 else tmp[1]
-            # Pull e' broken, non scarica da ECR
-            # client.images.pull(repository=tmp[0], tag=image_tag)
             out = client.containers.run(command.image, command.arguments).decode("utf-8").rstrip()
 
             # Assumption: the result is exactly the last output I got from the container
@@ -136,23 +135,6 @@ def process_job():
             result.payload = error_message
 
         # Publish the result and remove the job from the queue
-        # sqs.send_message(
-        #     QueueUrl=queue_results,
-        #     MessageBody=result.to_json()
-        # )
-
-        # Save the output on S3 and ciaone
-        descriptor, temp_path = tempfile.mkstemp()
-        with open(temp_path, "w") as text_file:
-            text_file.write("\n".join([result.to_json()]))
-        s3 = boto3.resource('s3',
-                            aws_access_key_id="AKIASQ3SURJILVRL2SV3",
-                            aws_secret_access_key="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",)
-        S3_BUCKET = "autotrader-0291"
-        S3_KEY = "results/{t}/{file}".format(t=result.id.split("-")[0], file=result.id)
-        s3.Object(S3_BUCKET, S3_KEY).upload_file(temp_path)
-
-        # Publish the result and remove the job from the queue
         sqs.send_message(
             QueueUrl=queue_results,
             MessageBody=result.to_json()
@@ -165,4 +147,3 @@ def process_job():
 
 
 run()
-# process_job()

@@ -40,29 +40,33 @@ The master is configured by passing to it 3 methods:
 * `reduce(value, accumulator)`: a function that collects all the outputs
 * `termination(values)`: a final function called at the end of the computation
 
-See [the examples](https://github.com/totomz/docker-tasker/blob/master/test/SimpleSum.py).
-
-To run the master:
-```
-Q_TASK=task Q_RESULTS=results python3 -m test.SimpleSum
-```
-
 
 ### Agent
 The agent is a docker image that runs the tasks. As simple as:
 ```
-docker run --rm -d \
-    -e AWS_ACCESS_KEY_ID=AKIAxxxxx \
-    -e AWS_SECRET_ACCESS_KEY=yyyyyyyy \
-    -e AWS_DEFAULT_REGION=eu-west-1 \
+docker pull totomz84/docker-tasker-agent:latest && docker run --rm -it \
+    -e AWS_ACCESS_KEY_ID=xxx \
+    -e AWS_SECRET_ACCESS_KEY=yyyy \
+    -e AWS_DEFAULT_REGION=zzzz \
     -e Q_TASK=task \
     -e Q_RESULTS=results \
     -v /var/run/docker.sock:/var/run/docker.sock \
-    totomz/docker-tasker:latest 
+    totomz84/docker-tasker-agent:latest     
 ```
 
 * `Q_TASK` is the name (the name only, not the url) to the input queue
 * `Q_RESULTS` is the name (the name only, not the url) to the output queue
+
+# How To Use It
+
+## Create a worker fleet
+Install docker in the nodes you want to use to execute the tasks.
+
+In the `fleet/` folder, there are Terraform stack to deploy a fleet of nodes using EC2 spot instances! 
+
+## Generate the tasks
+Copy the module `tasker/master/Master.py` where you want. See [the examples](https://github.com/totomz/docker-tasker/blob/master/test/SimpleSum.py) for usage.
+
 
 
 # Development

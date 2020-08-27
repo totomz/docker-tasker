@@ -25,3 +25,8 @@ hs_err_pid*
 .idea
 
 .env
+/fleet/aws/terraform.tfstate
+/fleet/aws/terraform.tfstate.backup
+/fleet/aws/tom.tfvars
+/fleet/aws/.terraform/plugins/darwin_amd64/lock.json
+/fleet/aws/.terraform/plugins/darwin_amd64/terraform-provider-aws_v3.3.0_x5

@@ -1,6 +1,9 @@
 import logging
 import sys
-from master.Master import Master
+import os
+from tasker.master.Master import Master
+from dotenv import load_dotenv
+load_dotenv()
 
 logging.basicConfig(level=logging.INFO, handlers=[logging.StreamHandler(sys.stdout)])
 
@@ -11,14 +14,15 @@ def supply():
         task = {
             "id": "test-{}".format(n),
             "image": "ubuntu",
-            "arguments": "/bin/bash -c 'sleep 1; echo {}'".format(n)
+            "arguments": "/bin/bash -c 'sleep 1; echo {number}'".format(number=n)
         }
         yield task
         n += 1
 
 
-def reduce(value, accumulator):
-    logging.info("    --> Reduce {} [{}]".format(value, accumulator))
+def reduce(value, accumulator, bar):
+    # value is a dictionary similar to {'id': 'test-2', 'isSuccess': True, 'payload': '2'}
+    bar.text("Processing: {task}".format(task=value['id']))
     if value['isSuccess']:
         accumulator.append(int(value['payload']))
 
@@ -34,6 +38,7 @@ def termination(values):
 
 
 if __name__ == '__main__':
+    print("DIOCANE PYTHON")
     master = Master(supplier=supply,
                     reducer=reduce,
                     terminate=termination)
