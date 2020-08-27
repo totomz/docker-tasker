@@ -1,9 +1,6 @@
 # docker-tasker
 
-`tasker` is a simple task producer-consumer tool, based on Docker. 
-
-It helps you run multiple tasks, represented as docker containers, on a cluster with (almost) no effort. 
-
+`docker-tasker` is a remote producer-consumer framework based on Docker. 
 
 ## Components
 
@@ -17,42 +14,37 @@ A task is a JSON-encoded message published in an [AWS SQS queue](https://aws.ama
 }
 ``` 
 
-A task must have: 
-* an `id` as unique identifier;
+A task **must** have: 
+* an `id` that uniquely identifies each task;
 * the Docker `image` to run;
 * the `arguments ` to pass to the `docker run` command;
-
-The above task results in this command
-```
-docker run ubuntu /bin/bash -c 'sleep 10; echo {"result": 1}'
-```  
+ 
 
 The result of a computation is encoded in a Result object:
 ```
 {
     "id": "task-1:,
     "isSuccess": true,
-    "payload": "anything"
+    "payload": "the last line found in container STDOUT/STDERR"
 
 }
 ```
-
-The result has the same `id` of its task. The last string returned by the docker image is copied in `payload`  
+The result has the same `id` of its task. The last string returned by the docker image is returned as `payload`  
 
 ### Master
 The [master](https://github.com/totomz/docker-tasker/blob/master/master/Master.py) is a simple Python script that push 
-the tasks in the queu and wait for the results. 
+the tasks in the [AWS SQS queue](https://aws.amazon.com/sqs/) and wait for the results. 
 
 The master is configured by passing to it 3 methods:
 * `supply()`: a method that return an iterables with the task to run
 * `reduce(value, accumulator)`: a function that collects all the outputs
-* `termination(values)` : a final function called at the end of the computation
+* `termination(values)`: a final function called at the end of the computation
 
 See [the examples](https://github.com/totomz/docker-tasker/blob/master/test/SimpleSum.py).
 
 To run the master:
 ```
-Q_TASK=task Q_RESULTS=results pipenv run python3 -m test.SimpleSum
+Q_TASK=task Q_RESULTS=results python3 -m test.SimpleSum
 ```
 
 
@@ -71,3 +63,15 @@ docker run --rm -d \
 
 * `Q_TASK` is the name (the name only, not the url) to the input queue
 * `Q_RESULTS` is the name (the name only, not the url) to the output queue
+
+
+# Development
+Dependencies ar managed with pip. Conda for the envs.
+With Conda:
+``` 
+conda create -n tasker python=3.7 
+conda activate tasker
+conda install python=3.7
+conda install pip
+pip install -r requirements.txt
+```
