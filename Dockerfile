@@ -12,6 +12,7 @@ RUN pipenv install
 
 COPY agent ./agent
 COPY master ./master
+COPY jobs ./jobs
 
 COPY run.sh /opt/tasker/
 ENTRYPOINT ["/opt/tasker/run.sh"]
