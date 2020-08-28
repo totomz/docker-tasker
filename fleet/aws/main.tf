@@ -13,9 +13,8 @@ variable "instance_types" { default = [
   "c5.18xlarge",
   "c5.24xlarge"
 ]}
-variable "registry_login" { default = "aws ecr get-login-password --region eu-central-1 | docker login --username AWS --password-stdin 173649726032.dkr.ecr.eu-central-1.amazonaws.com"}
-
-
+variable "registry_user" { type = string }
+variable "registry_pass" { type = string }
 
 provider "aws" {
   profile = var.aws_profile
@@ -67,7 +66,8 @@ resource "aws_iam_role_policy" "instance_policy" {
         "ecr:BatchGetImage",
         "ecr:DescribeImages",
         "ecr:GetAuthorizationToken",
-        "ecr:ListImages"
+        "ecr:ListImages",
+        "ecr:GetDownloadUrlForLayer"
       ],
       "Resource" : "*"
     },
@@ -80,6 +80,13 @@ resource "aws_iam_role_policy" "instance_policy" {
         "sqs:ReceiveMessage",
         "sqs:SendMessage",
         "sqs:ChangeMessageVisibilityBatch"
+      ],
+      "Resource" : "*"
+    },
+    {
+      "Effect" : "Allow",
+      "Action" : [
+        "s3:*"
       ],
       "Resource" : "*"
     }
@@ -173,11 +180,14 @@ resource "aws_spot_fleet_request" "tasker-fleet" {
       # Is it working?
       docker run hello-world
 
-      # Command to login in the registry HERE
-      ${var.registry_login}
+      # Put the registry user and password here
+      registry_user=${var.registry_user}
+      registry_pass=${var.registry_pass}
 
       # Start the agent
-      docker pull totomz84/docker-tasker-agent:latest && docker run --rm -it \
+      docker pull totomz84/docker-tasker-agent:latest && docker run --rm -d \
+        -e REGISTRY_USER="$registry_user" \
+        -e REGISTRY_PASSWORD="$registry_pass" \
         -e AWS_DEFAULT_REGION=${var.aws_region} \
         -e Q_TASK=${var.queue_task_name} \
         -e Q_RESULTS=${var.queue_results_name} \

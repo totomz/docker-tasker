@@ -110,6 +110,16 @@ def process_job():
 
             tmp = command.image.split(":")
             image_tag = "latest" if len(tmp) == 1 else tmp[1]
+
+            if os.environ.get('REGISTRY_USER', None) is not None:
+                log.info("Pulling image {img}".format(img=command.image))
+                image = client.images.pull(repository=command.image,
+                                           auth_config={
+                                               'username': os.environ.get('REGISTRY_USER', None),
+                                               'password': os.environ.get('REGISTRY_PASSWORD', None)
+                                           })
+                log.info("Pulled {img}".format(img=image.id))
+
             out = client.containers.run(command.image, command.arguments).decode("utf-8").rstrip()
 
             # Assumption: the result is exactly the last output I got from the container
@@ -151,7 +161,7 @@ def process_job():
             QueueUrl=queue_results,
             MessageBody=result.to_json()
         )
-        log.info("quasi?")
+
         sqs.delete_message(
             QueueUrl=queue_jobs,
             ReceiptHandle=message['ReceiptHandle']
