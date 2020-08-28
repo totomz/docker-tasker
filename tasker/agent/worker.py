@@ -134,16 +134,29 @@ def process_job():
             result.isSuccess = False
             result.payload = error_message
 
+        # Save the output in S3 if required
+        S3_BUCKET = os.environ.get('S3_RESULTS_BUKET', None)
+        if S3_BUCKET is not None:
+            log.info("Saving results in S3")
+            S3_KEY = "results/{t}/{file}".format(t=result.id.split("-")[0], file=result.id)
+            descriptor, temp_path = tempfile.mkstemp()
+            with open(temp_path, "w") as text_file:
+                text_file.write("\n".join([result.to_json()]))
+            s3 = boto3.resource('s3')
+            s3.Object(S3_BUCKET, S3_KEY).upload_file(temp_path)
+
         # Publish the result and remove the job from the queue
+        log.info("Saving result in SQS")
         sqs.send_message(
             QueueUrl=queue_results,
             MessageBody=result.to_json()
         )
-
+        log.info("quasi?")
         sqs.delete_message(
             QueueUrl=queue_jobs,
             ReceiptHandle=message['ReceiptHandle']
         )
+        log.info("Task deleted from queue")
 
 
 run()
