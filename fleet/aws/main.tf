@@ -4,6 +4,7 @@ variable "fleet_count" { type = string }
 variable "subnet_id" { type = string }
 variable "vpc_id" { type = string }
 variable "keyname" { type = string }
+variable "results_s3_bucket" { type = string }
 variable queue_task_name { default = "task" }
 variable queue_results_name { default = "results" }
 variable "instance_types" { default = [
@@ -117,6 +118,7 @@ resource "aws_security_group" "tasker_ssh" {
   }
 }
 
+
 resource "aws_spot_fleet_request" "tasker-fleet" {
   iam_fleet_role = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/aws-ec2-spot-fleet-tagging-role"
   excess_capacity_termination_policy = "NoTermination"
@@ -188,6 +190,7 @@ resource "aws_spot_fleet_request" "tasker-fleet" {
       docker pull totomz84/docker-tasker-agent:latest && docker run --rm -d \
         -e REGISTRY_USER="$registry_user" \
         -e REGISTRY_PASSWORD="$registry_pass" \
+        -e S3_RESULTS_BUKET=${var.results_s3_bucket} \
         -e AWS_DEFAULT_REGION=${var.aws_region} \
         -e Q_TASK=${var.queue_task_name} \
         -e Q_RESULTS=${var.queue_results_name} \
