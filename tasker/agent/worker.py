@@ -1,5 +1,5 @@
 #!/usr/bin/python3 -u
-
+import base64
 import json
 import logging
 import multiprocessing
@@ -9,7 +9,7 @@ import tempfile
 import boto3
 import docker
 from datetime import datetime
-from multiprocessing import Pool
+from multiprocessing import Pool, Lock
 
 from dotenv import load_dotenv
 load_dotenv()
@@ -53,6 +53,47 @@ class DockerResult:
             'isSuccess': self.isSuccess,
             'payload': self.payload
         })
+
+
+image_cache = dict()
+lock = Lock()
+
+
+def pull_image(image_name, thread_id):
+    log = logging.getLogger()
+    log.debug("*** [{thread}] PULLO?".format(thread=thread_id))
+
+    if image_cache.get(image_name, False):
+        log.info("*** [{thread}] found in cache - returning".format(thread=thread_id))
+        return True
+
+    lock.acquire()
+    log.debug("*** {thread} lock acquired".format(thread=thread_id))
+
+    d0cker = docker.from_env()
+    images = d0cker.images.list(name=image_name)
+    names = list(map(lambda img: img.tags[0], images))
+    if any(image_name in s for s in names):
+        log.info("*** {thread} found image locally".format(thread=thread_id))
+        image_cache[image_name] = True
+        log.debug("*** {thread} lock released".format(thread=thread_id))
+        lock.release()
+        return
+
+    # ECR Login
+    log.info("*** {thread} ECR Login".format(thread=thread_id))
+    session = boto3.Session(region_name=aws_region)
+    ecr = session.client('ecr')
+    auth = ecr.get_authorization_token()
+    token = auth["authorizationData"][0]["authorizationToken"]
+    username, password = base64.b64decode(token).decode("utf-8").split(':')
+    endpoint = auth["authorizationData"][0]["proxyEndpoint"]
+    image = d0cker.images.pull(image_name, auth_config={'username': username, 'password': password})
+    log.debug("*** {thread} Image pulled".format(thread=thread_id))
+    image_cache[image_name] = True
+    log.debug("*** {thread} lock released".format(thread=thread_id))
+    lock.release()
+    return
 
 
 def run():
@@ -110,15 +151,18 @@ def process_job():
 
             tmp = command.image.split(":")
             image_tag = "latest" if len(tmp) == 1 else tmp[1]
+            myname = multiprocessing.process.current_process().name
+            log.info("Going to pull! [{myname}]".format(myname=myname))
+            pull_image(image_name=command.image, thread_id=myname)
 
-            if os.environ.get('REGISTRY_USER', None) is not None:
-                log.info("Pulling image {img}".format(img=command.image))
-                image = client.images.pull(repository=command.image,
-                                           auth_config={
-                                               'username': os.environ.get('REGISTRY_USER', None),
-                                               'password': os.environ.get('REGISTRY_PASSWORD', None)
-                                           })
-                log.info("Pulled {img}".format(img=image.id))
+            # if os.environ.get('REGISTRY_USER', None) is not None:
+            #     log.info("Pulling image {img}".format(img=command.image))
+            #     image = client.images.pull(repository=command.image,
+            #                                auth_config={
+            #                                    'username': os.environ.get('REGISTRY_USER', None),
+            #                                    'password': os.environ.get('REGISTRY_PASSWORD', None)
+            #                                })
+            #     log.info("Pulled {img}".format(img=image.id))
 
             out = client.containers.run(command.image, command.arguments).decode("utf-8").rstrip()
 

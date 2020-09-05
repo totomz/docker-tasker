@@ -14,8 +14,6 @@ variable "instance_types" { default = [
   "c5.18xlarge",
   "c5.24xlarge"
 ]}
-variable "registry_user" { type = string }
-variable "registry_pass" { type = string }
 
 provider "aws" {
   profile = var.aws_profile
@@ -145,9 +143,13 @@ resource "aws_spot_fleet_request" "tasker-fleet" {
       associate_public_ip_address = true
 
       root_block_device {
-        delete_on_termination = false
+        delete_on_termination = true
         volume_type = "gp2"
         volume_size = 30
+      }
+
+      tags = {
+        project = "autotrader"
       }
 
       user_data = <<-EOF
@@ -182,14 +184,8 @@ resource "aws_spot_fleet_request" "tasker-fleet" {
       # Is it working?
       docker run hello-world
 
-      # Put the registry user and password here
-      registry_user=${var.registry_user}
-      registry_pass=${var.registry_pass}
-
       # Start the agent
       docker pull totomz84/docker-tasker-agent:latest && docker run --rm -d \
-        -e REGISTRY_USER="$registry_user" \
-        -e REGISTRY_PASSWORD="$registry_pass" \
         -e S3_RESULTS_BUKET=${var.results_s3_bucket} \
         -e AWS_DEFAULT_REGION=${var.aws_region} \
         -e Q_TASK=${var.queue_task_name} \
