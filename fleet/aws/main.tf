@@ -1,25 +1,3 @@
-variable "aws_region" { type = string }
-variable "aws_profile" { type = string }
-variable "fleet_count" { type = string }
-variable "subnet_id" { type = string }
-variable "vpc_id" { type = string }
-variable "keyname" { type = string }
-variable "results_s3_bucket" { type = string }
-variable queue_task_name { default = "task" }
-variable queue_results_name { default = "results" }
-variable "instance_types" { default = [
-  "m5.16xlarge",
-  "m5.24xlarge",
-  "c5.12xlarge",
-  "c5.18xlarge",
-  "c5.24xlarge"
-]}
-
-provider "aws" {
-  profile = var.aws_profile
-  region = var.aws_region
-}
-
 data "aws_caller_identity" "current" {}
 
 data "aws_ami" "ubuntu" {
@@ -114,6 +92,10 @@ resource "aws_security_group" "tasker_ssh" {
     protocol = "-1"
     cidr_blocks = ["0.0.0.0/0"]
   }
+  
+  tags = {
+    project = var.tags_project
+  }
 }
 
 
@@ -149,7 +131,7 @@ resource "aws_spot_fleet_request" "tasker-fleet" {
       }
 
       tags = {
-        project = "autotrader"
+        project = var.tags_project
       }
 
       user_data = <<-EOF
@@ -157,12 +139,16 @@ resource "aws_spot_fleet_request" "tasker-fleet" {
       apt-get update
       apt-get install -y vim jq python3-pip curl unzip
 
-      # Install the aws cli
+      #######################
+      # Install the aws cli #
+      #######################
       curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
       unzip awscliv2.zip
       ./aws/install
 
-      # Install docker
+      ##################
+      # Install docker #
+      ##################
       apt-get remove docker docker-engine docker.io containerd runc
 
       apt-get install -y \
@@ -184,7 +170,9 @@ resource "aws_spot_fleet_request" "tasker-fleet" {
       # Is it working?
       docker run hello-world
 
-      # Start the agent
+      ###################
+      # Start the agent #
+      ###################
       docker pull totomz84/docker-tasker-agent:latest && docker run --rm -d \
         -e S3_RESULTS_BUKET=${var.results_s3_bucket} \
         -e AWS_DEFAULT_REGION=${var.aws_region} \
@@ -200,7 +188,3 @@ resource "aws_spot_fleet_request" "tasker-fleet" {
   }
 
 }
-
-//output "bomba" {
-//  value = data.aws_ami.ubuntu.image_id
-//}
