@@ -71,24 +71,30 @@ def pull_image(image_name, thread_id):
     log.debug("*** {thread} lock acquired".format(thread=thread_id))
 
     d0cker = docker.from_env()
-    images = d0cker.images.list(name=image_name)
-    names = list(map(lambda img: img.tags[0], images))
-    if any(image_name in s for s in names):
-        log.info("*** {thread} found image locally".format(thread=thread_id))
+
+    try :
+        zio = d0cker.images.get(image_name)
+        log.info("*** {thread} found image {zio} locally".format(thread=thread_id, zio=zio.id))
         image_cache[image_name] = True
         log.debug("*** {thread} lock released".format(thread=thread_id))
         lock.release()
         return
+    except Exception:
+        log.info("*** {thread} Image not found. Pull".format(thread=thread_id))
 
-    # ECR Login
-    log.info("*** {thread} ECR Login".format(thread=thread_id))
-    session = boto3.Session(region_name=aws_region)
-    ecr = session.client('ecr')
-    auth = ecr.get_authorization_token()
-    token = auth["authorizationData"][0]["authorizationToken"]
-    username, password = base64.b64decode(token).decode("utf-8").split(':')
-    endpoint = auth["authorizationData"][0]["proxyEndpoint"]
-    image = d0cker.images.pull(image_name, auth_config={'username': username, 'password': password})
+    if ".amazonaws.com" in image_name:
+        log.info("*** {thread} ECR Login".format(thread=thread_id))
+        session = boto3.Session(region_name=aws_region)
+        ecr = session.client('ecr')
+        auth = ecr.get_authorization_token()
+        token = auth["authorizationData"][0]["authorizationToken"]
+        username, password = base64.b64decode(token).decode("utf-8").split(':')
+        endpoint = auth["authorizationData"][0]["proxyEndpoint"]
+        image = d0cker.images.pull(image_name, auth_config={'username': username, 'password': password})
+    else:
+        log.info("*** {thread} Docker Pull".format(thread=thread_id))
+        image = d0cker.images.pull(image_name)
+
     log.debug("*** {thread} Image pulled".format(thread=thread_id))
     image_cache[image_name] = True
     log.debug("*** {thread} lock released".format(thread=thread_id))
@@ -214,3 +220,4 @@ def process_job():
 
 
 run()
+# process_job()
