@@ -105,6 +105,7 @@ resource "aws_spot_fleet_request" "tasker-fleet" {
   instance_interruption_behaviour = "terminate"
   replace_unhealthy_instances = true
   target_capacity = var.fleet_count
+
   terminate_instances_with_expiration = true
   fleet_type = "maintain"
   valid_until = "2099-12-22T20:44:20Z"
@@ -123,6 +124,7 @@ resource "aws_spot_fleet_request" "tasker-fleet" {
       subnet_id = var.subnet_id
       vpc_security_group_ids = [ aws_security_group.tasker_ssh.id ]
       associate_public_ip_address = true
+      weighted_capacity = lookup(var.instance_cpu, launch_specification.value )
 
       root_block_device {
         delete_on_termination = true
@@ -173,8 +175,8 @@ resource "aws_spot_fleet_request" "tasker-fleet" {
       ###################
       # Start the agent #
       ###################
+      # -e S3_RESULTS_BUKET=${var.results_s3_bucket} \
       docker pull totomz84/docker-tasker-agent:latest && docker run --rm -d \
-        -e S3_RESULTS_BUKET=${var.results_s3_bucket} \
         -e AWS_DEFAULT_REGION=${var.aws_region} \
         -e Q_TASK=${var.queue_task_name} \
         -e Q_RESULTS=${var.queue_results_name} \

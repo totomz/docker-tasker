@@ -15,12 +15,24 @@ variable "instance_types" { default = [
   "m5.2xlarge",   // 8 vCPU
   "m5.4xlarge",   // 16 vCPU
   "m5.8xlarge",   // 32 vCPU
-  
-  
-//  "m5.12xlarge",  // 48 vCPU
-//  "m5.16xlarge",  // 64 vCPU
-//  "m5.24xlarge",  // 96 vCPU
-//  "c5.12xlarge",  // 48 vCPU
-//  "c5.18xlarge",  // 72 vCPU
-//  "c5.24xlarge"   // 96 vCPU
+  "m5.12xlarge",  // 48 vCPU
+  "m5.16xlarge",  // 64 vCPU
+  "m5.24xlarge",  // 96 vCPU
+  "c5.12xlarge",  // 48 vCPU
+  "c5.18xlarge",  // 72 vCPU
+  "c5.24xlarge"   // 96 vCPU
 ]}
+
+variable "instance_cpu" { default = {
+  "c5.2xlarge": 8, // 8vCPU
+  "c5.4xlarge": 16, // 16 vCPU    
+  "m5.2xlarge": 8, // 8 vCPU
+  "m5.4xlarge": 16, // 16 vCPU
+  "m5.8xlarge": 32, // 32 vCPU
+  "m5.12xlarge": 48, // 48 vCPU
+  "m5.16xlarge": 64, // 64 vCPU
+  "m5.24xlarge": 96, // 96 vCPU
+  "c5.12xlarge": 48, // 48 vCPU
+  "c5.18xlarge": 72, // 72 vCPU
+  "c5.24xlarge": 96 // 96 vCPU
+}}
