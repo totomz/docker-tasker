@@ -170,7 +170,9 @@ def process_job():
             #                                })
             #     log.info("Pulled {img}".format(img=image.id))
 
-            out = client.containers.run(command.image, command.arguments).decode("utf-8").rstrip()
+            out = client.containers.run(command.image,
+                                        command.arguments,
+                                        auto_remove=True).decode("utf-8").rstrip()
 
             # Assumption: the result is exactly the last output I got from the container
             out = out.split("\n")[-1]
